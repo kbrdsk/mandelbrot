@@ -90,6 +90,7 @@ function checkConvergence(c, iterations){
 
 function colorFunction(cVal){
 	return [(cVal * 2) % 255, (cVal * 3) % 255, (cVal * 5) % 255, 255];
+	//return [0,0,0,cVal]
 }
 
 function updateCoords(fractalArray){
@@ -105,11 +106,31 @@ function updateCoords(fractalArray){
 function recomputeArray(fractalArray, iterations){
 	for(let x in fractalArray){
 		for(let y in fractalArray[x]){
-			//if(fractalArray[x][y].cNum !== Infinity) continue;
+			if(noRecompute(fractalArray, +x, +y, iterations)) continue;
 			let z = fractalArray[x][y].z;
 			fractalArray[x][y].cNum = checkConvergence(z, iterations);
 		}
 	}
+}
+
+function noRecompute(fractalArray, x, y, iterations){
+	//return false;
+	let p = fractalArray[x][y];
+
+	let cNumD = (a, b) => {
+		if(a < 0 || b < 0) return false;
+		if(a >= 1000 || b >= 500) return false;
+		let diff = Math.abs(fractalArray[a][b].cNum - p.cNum);
+		return  isNaN(diff) || diff > 10;
+	}
+
+	for (let i = -10; i < 10; i++){
+		if(cNumD(x - 10, y + i)) return false;
+		if(cNumD(x + i, y + 10)) return false;
+		if(cNumD(x - 10, y + i)) return false;
+		if(cNumD(x + i, y - 10)) return false;
+	}
+	return true;
 }
 
 function drawFromArray(array){
