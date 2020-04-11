@@ -1,89 +1,93 @@
 class MandelbrotPoint{
-	constructor(z, cNum){
+	constructor(z, divIndex){
 		this.z = new ComplexNumber(z.real, z.imag);
-		this.cNum = cNum;
+		this.divIndex = divIndex;
 	}
 }
 
-let canvas = document.getElementById('fractal-canvas');
-let ctx = (canvas.getContext)? canvas.getContext('2d'): null;
-
-let windowArray = [];
-
-let iterations = 100;
-
-let dr = 4;
-let di = 2;
-let r0 = -2;
-let i0 = 1;
-
-for(x = 0; x < +canvas.width; x++){
-	windowArray[x] = [];
-	for(y = 0; y < +canvas.height; y++){
-	let z = convertCoordinates(x, y);
-	windowArray[x][y] = new MandelbrotPoint(z, Infinity);
-	}
-}
-
-
-recomputeArray(windowArray, iterations);
-
-drawFromArray(windowArray);
+let canvas = document.getElementById('fractal-canvas'),
+	ctx = (canvas.getContext)? canvas.getContext('2d'): null;
 
 canvas.addEventListener('click', (e) => zoom(e));
 
-//drawFractal();
+let iterations,
+	viewProportion,
+	viewSize,
+	complexCorner,
+	fractalArray = [];
+
+initializeVariables();
+initializeFractalArray();
+recomputeArray(fractalArray, iterations);
+drawFromArray(fractalArray);
+
+function initializeVariables() {
+	fractalArray = [];
+	iterations = 100;
+	viewProportion = +canvas.height/+canvas.width;
+	viewSize = 4;
+	complexCorner = new ComplexNumber(-2, 1);
+}
+
+function initializeFractalArray(){
+	for(x = 0; x < +canvas.width; x++){
+		fractalArray[x] = [];
+		for(y = 0; y < +canvas.height; y++){
+			let z = convertCoordinates(x, y);
+			fractalArray[x][y] = new MandelbrotPoint(z, Infinity);
+		}
+	}
+}
+
+function zoomCorner(clickLoc, dimLength){
+	return Math.min(Math.max(clickLoc - dimLength/4, 0), dimLength/2);
+}
 
 function zoom(click){
 	iterations += 15;
-	let cornerX = Math.min(Math.max(click.clientX - +canvas.width/4, 0), +canvas.width/2);
-	let cornerY = Math.min(Math.max(click.clientY - +canvas.height/4, 0), +canvas.height/2);
-	let newCoords = convertCoordinates(cornerX, cornerY);
-	dr = dr/2;
-	di = di/2;
-	r0 = newCoords.real;
-	i0 = newCoords.imag;
-	windowArray = scale(windowArray, 2, [cornerX, cornerY]);
-	updateCoords(windowArray);
-	recomputeArray(windowArray, iterations);
-	drawFromArray(windowArray);
+	let cornerX = zoomCorner(click.clientX, +canvas.width),
+		cornerY = zoomCorner(click.clientY, +canvas.height);
+	complexCorner = convertCoordinates(cornerX, cornerY);
+	viewSize = viewSize / 2;
+	fractalArray = arrayScale(fractalArray, 2, cornerX, cornerY);
+	updateCoords(fractalArray);
+	recomputeArray(fractalArray, iterations);
+	drawFromArray(fractalArray);
 }
 
-function scale(oldArray, factor, corner){
-	let newArray = [];
-	let oldX = corner[0];
-	let width = oldArray.length;
-	let height = oldArray[0].length;
-	for(let x = 0; x < width;){
-		let oldY = corner[1];
-		let oldColumn = oldArray[oldX];
-		let newColumn = [];
-		for(let y = 0; y < height;){
+function arrayScale(referenceArray, factor, cornerX, cornerY){
+	let newArray = [],
+		refX = cornerX;
+
+	for(let x = 0; x < referenceArray.length;){
+		let refY = cornerY,
+			referenceColumn = referenceArray[refX],
+			newColumn = [];
+
+		for(let y = 0; y < referenceColumn.length;){
 			for(let j = 0; j < factor; j++){
-				let m = oldColumn[oldY];
-				newColumn[y] = new MandelbrotPoint(m.z, m.cNum);
+				let refPt = referenceColumn[refY];
+				newColumn[y] = new MandelbrotPoint(refPt.z, refPt.divIndex);
 				y++;
-				if(y >= height) break;
+				if(y >= referenceColumn.length) break;
 			}
-			oldY++;
+			refY++;
 		}
 		for(let i = 0; i < factor; i++){
 			newArray[x] = newColumn;
 			x++;
-			if(x >= width) break;
+			if(x >= referenceArray.length) break;
 		}
-		oldX++;
+		refX++;
 	}
 	return newArray;	
 }
 
 function checkConvergence(c, iterations){
-	let z = new ComplexNumber(c.real, c.imag);
-	let i;
-	for(i = 0; i < iterations; i++){
+	let z = c;
+	for(let i = 0; i < iterations; i++){
 		if(z.abs > 2) return i;
-		z = z.mul(z);
-		z = z.add(c);
+		z = z.mul(z).add(c);
 	}
 	return Infinity;
 }
@@ -96,9 +100,9 @@ function colorFunction(cVal){
 function updateCoords(fractalArray){
 	for(let x in fractalArray){
 		for(let y in fractalArray[x]){
-			let oldcNum = fractalArray[x][y].cNum;
+			let oldDivIndex = fractalArray[x][y].divIndex;
 			let newCoords = convertCoordinates(x,y);
-			fractalArray[x][y] = new MandelbrotPoint(newCoords, oldcNum);
+			fractalArray[x][y] = new MandelbrotPoint(newCoords, oldDivIndex);
 		}
 	}
 }
@@ -108,51 +112,43 @@ function recomputeArray(fractalArray, iterations){
 		for(let y in fractalArray[x]){
 			if(noRecompute(fractalArray, +x, +y, iterations)) continue;
 			let z = fractalArray[x][y].z;
-			fractalArray[x][y].cNum = checkConvergence(z, iterations);
+			fractalArray[x][y].divIndex = checkConvergence(z, iterations);
 		}
 	}
 }
 
-function noRecompute(fractalArray, x, y, iterations){
-	//return false;
-	let p = fractalArray[x][y];
+function isOutOfBounds(x, y, array){
+	return x < 0 || y < 0 || x >= array.length|| y >= array[0].length;
+}
 
-	let cNumD = (a, b) => {
-		if(a < 0 || b < 0) return false;
-		if(a >= 1000 || b >= 500) return false;
-		let diff = Math.abs(fractalArray[a][b].cNum - p.cNum);
+function noRecompute(fractalArray, x, y, iterations){
+	return false;
+	/*let p = fractalArray[x][y];
+
+	let divIndexD = (a, b) => {
+		if(isOutOfBounds(a, b, fractalArray)) return false;
+		let diff = Math.abs(fractalArray[a][b].divIndex - p.divIndex);
 		return  isNaN(diff) || diff > 10;
 	}
 
 	for (let i = -10; i < 10; i++){
-		if(cNumD(x - 10, y + i)) return false;
-		if(cNumD(x + i, y + 10)) return false;
-		if(cNumD(x - 10, y + i)) return false;
-		if(cNumD(x + i, y - 10)) return false;
+		if(divIndexD(x - 10, y + i)) return false;
+		if(divIndexD(x + i, y + 10)) return false;
+		if(divIndexD(x - 10, y + i)) return false;
+		if(divIndexD(x + i, y - 10)) return false;
 	}
-	return true;
+	return true;*/
 }
 
 function drawFromArray(array){
-	let width = array.length;
-	let height = array[0].length;
-	let imageData = ctx.createImageData(width, height);
-	for(let x = 0; x < width; x++){
-		for(let y = 0; y < height; y++){
-			let cVal = convertTocVal(array[x][y].cNum, iterations);
-			drawPixel(imageData, [x, y], colorFunction(cVal));
-		}
-	}
-	ctx.putImageData(imageData, 0, 0);
-}
+	let width = array.length,
+		height = array[0].length;
 
-function drawFractal (){
-	let width = +canvas.width;
-	let height = +canvas.height;
 	let imageData = ctx.createImageData(width, height);
+
 	for(let x = 0; x < width; x++){
 		for(let y = 0; y < height; y++){
-			let cVal = getcVal(x,y);
+			let cVal = convertTocVal(array[x][y].divIndex, iterations);
 			drawPixel(imageData, [x, y], colorFunction(cVal));
 		}
 	}
@@ -164,24 +160,18 @@ function drawPixel (imageData, [pixelX, pixelY], rgba){
 	for(let i = 0; i < 4; i++) imageData.data[pixelPosition + i] = rgba[i];
 }
 
-
 function convertCoordinates(x, y){
 	let relX = x/(+canvas.width);
 	let relY = y/(+canvas.height);
 
-	return new ComplexNumber(r0 + relX * dr, i0 - relY * di);
+	return new ComplexNumber(
+				complexCorner.real + relX * viewSize,
+				complexCorner.imag - relY * viewSize * viewProportion);
 }
 
-function convertTocVal(cNum, iterations){
-	let cN = Math.min(iterations, cNum);
+function convertTocVal(divIndex, iterations){
+	let cN = Math.min(iterations, divIndex);
 	let cVal = cN/iterations * 255;
-	return cVal; 
-}
-
-function getcVal(x, y, iterations = 100){
-	let z = convertCoordinates(x, y);
-	let cNum = Math.min(iterations, checkConvergence(z, iterations));
-	let cVal = cNum/iterations * 255;
 	return cVal; 
 }
 
