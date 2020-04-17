@@ -44,7 +44,7 @@ function zoomCorner(clickLoc, dimLength){
 }
 
 function zoom(click){
-	iterations += 15;
+	iterations *= 1.5;
 	let cornerX = zoomCorner(click.clientX, +canvas.width),
 		cornerY = zoomCorner(click.clientY, +canvas.height);
 	complexCorner = convertCoordinates(cornerX, cornerY);
@@ -84,15 +84,21 @@ function arrayScale(referenceArray, factor, cornerX, cornerY){
 }
 
 function checkConvergence(c, iterations){
-	let z = c;
+	let z = c,
+		d = new ComplexNumber(1, 0);
 	for(let i = 0; i < iterations; i++){
 		if(z.abs > 2) return i;
 		z = z.mul(z).add(c);
+		d = z.mul(new ComplexNumber(2, 0)).mul(d);
+		if(d.abs < 0.1) return Infinity;
 	}
 	return Infinity;
 }
 
+//see https://www.math.univ-toulouse.fr/~cheritat/wiki-draw/index.php/Mandelbrot_set
+
 function colorFunction(cVal){
+	//return [cVal % 255, Math.min(cVal + 10, 255) % 255, Math.min(cVal + 20, 255) % 255,255]
 	return [(cVal * 2) % 255, (cVal * 3) % 255, (cVal * 5) % 255, 255];
 	//return [0,0,0,cVal]
 }
